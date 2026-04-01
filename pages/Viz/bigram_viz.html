@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bigram Model — Visual Walkthrough</title>
+<style>
+:root {
+  --bg: #f0ece4;
+  --bg-dark: #a7a196;
+  --text: #2c2c2c;
+  --text-muted: #7a7a7a;
+  --accent: #4a4a4a;
+  --accent-hover: #1a1a1a;
+  --surface: #faf8f4;
+  --border: #ddd8cf;
+  --radius: 10px;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* semantic colors (muted to match warm palette) */
+  --blue: #5b7a9e;
+  --green: #6a8f6e;
+  --amber: #9e7c4a;
+  --red: #a85a53;
+  --purple: #7e6a9e;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  background-image: linear-gradient(to bottom, var(--bg) 50%, var(--bg-dark) 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  line-height: 1.7;
+  min-height: 100vh;
+  padding: 0;
+}
+
+/* ── Layout ── */
+.page { max-width: 780px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+
+/* ── Typography ── */
+h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: .2rem; }
+h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: .5rem; letter-spacing: -0.01em; }
+h3 { color: var(--accent); font-size: .9rem; margin: .8rem 0 .4rem; font-weight: 600; }
+.sub { color: var(--text-muted); font-size: .88rem; margin-bottom: 1.5rem; }
+.desc { color: var(--text-muted); font-size: .85rem; margin: .3rem 0 .5rem; }
+code { background: rgba(0, 0, 0, 0.06); padding: .15em .4em; border-radius: 4px; font-size: .85em; font-family: 'SF Mono', 'Fira Code', Consolas, monospace; }
+pre { background: rgba(0, 0, 0, 0.04); border-radius: var(--radius); padding: .8rem 1rem; font-size: .8rem; margin: .5rem 0; overflow-x: auto; font-family: 'SF Mono', 'Fira Code', Consolas, monospace; }
+
+/* ── Step card ── */
+.step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.3rem 1.4rem;
+  margin-bottom: 1rem;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.step:hover { border-color: #bbb5a8; box-shadow: var(--shadow); }
+.sn { display: inline-block; background: var(--accent); color: var(--surface); font-weight: 700; width: 24px; height: 24px; text-align: center; line-height: 24px; border-radius: 50%; font-size: .75rem; margin-right: .35rem; vertical-align: middle; }
+
+/* ── Note callout ── */
+.note { background: rgba(0, 0, 0, 0.03); border-left: 3px solid var(--accent); padding: .5rem 1rem; margin: .6rem 0; font-size: .8rem; color: var(--text-muted); border-radius: 0 var(--radius) var(--radius) 0; }
+.note b { color: var(--text); }
+
+/* ── Scrollable visual container ── */
+.visual { margin: .6rem 0; overflow-x: auto; padding-bottom: .25rem; }
+
+/* ── Character boxes ── */
+.char-box {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; height: 28px; border-radius: 6px;
+  font-size: .82rem; font-weight: 600; padding: 0 4px;
+  flex-shrink: 0;
+}
+.char-box.boundary { background: #efe4cc; color: var(--amber); }
+.char-box.letter   { background: #e4eaf0; color: var(--blue); }
+.char-box.dim      { opacity: .15; }
+
+/* ── Word chips ── */
+.word-list { display: flex; flex-wrap: wrap; gap: 5px; margin: .4rem 0; }
+.word-chip { background: rgba(0,0,0,.04); border-radius: 6px; padding: 3px 9px; font-size: .8rem; }
+
+/* ── Pair capsules ── */
+.pair { display: inline-flex; align-items: center; gap: 3px; background: rgba(0,0,0,.03); border-radius: 6px; padding: 3px 8px; margin: 2px; }
+.pair .pa { color: var(--green); font-size: .82rem; }
+
+/* ── Flow (input → op → output) ── */
+.flow { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin: .5rem 0; }
+.fbox { background: rgba(0,0,0,.03); border-radius: var(--radius); padding: .45rem .8rem; text-align: center; max-width: 100%; overflow: hidden; }
+.fbox.in  { background: #e8edf3; }
+.fbox.out { background: #e6ede7; }
+.fbox.op  { background: transparent; color: var(--text-muted); font-size: 1.1rem; padding: .2rem; }
+.flbl { font-size: .65rem; color: var(--text-muted); display: block; margin-bottom: .1rem; white-space: nowrap; }
+.fval { font-weight: 700; font-size: .85rem; word-break: break-all; }
+
+/* ── Grid (one-hot, weight heatmap) ── */
+.grid { display: inline-grid; gap: 1px; margin: .3rem 0; }
+.gc {
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .58rem; border-radius: 3px;
+}
+.gc.on  { background: var(--blue); color: #fff; font-weight: 700; }
+.gc.off { background: rgba(0,0,0,.04); color: #bbb5a8; }
+.gc.hot { background: var(--green); color: #fff; font-weight: 700; }
+.gc.hdr { background: transparent; color: var(--text-muted); font-weight: 600; font-size: .56rem; }
+
+/* ── Data tables ── */
+.dtable { border-collapse: collapse; margin: .4rem 0; font-size: .8rem; }
+.dtable th { text-align: left; color: var(--text-muted); padding: 4px 8px; border-bottom: 1px solid var(--border); font-weight: 600; }
+.dtable td { padding: 4px 8px; border-bottom: 1px solid rgba(0,0,0,.04); }
+.dtable .arr { color: var(--text-muted); font-size: .9rem; padding: 2px 4px; }
+
+/* ── Probability bars ── */
+.bar-row { display: flex; align-items: center; gap: .3rem; margin: 2px 0; }
+.bar-lbl { width: 16px; text-align: center; font-size: .72rem; color: var(--text-muted); flex-shrink: 0; }
+.bar-track { flex: 1; height: 14px; background: rgba(0,0,0,.04); border-radius: 4px; max-width: 280px; }
+.bar-fill { height: 100%; border-radius: 4px; }
+.bar-val { font-size: .7rem; color: var(--text-muted); width: 50px; flex-shrink: 0; }
+
+/* ── Controls ── */
+.ctrl { margin: .5rem 0; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+button { background: var(--accent); color: var(--surface); border: none; padding: .35rem .9rem; border-radius: 6px; font-family: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; transition: color 0.2s, background 0.2s; }
+button:hover { background: var(--accent-hover); }
+button.sec { background: rgba(0,0,0,.06); color: var(--text); }
+button.sec:hover { background: rgba(0,0,0,.1); }
+select { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: .25rem .5rem; border-radius: 6px; font-family: inherit; font-size: .8rem; }
+
+/* ── Tags ── */
+.tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: .7rem; font-weight: 600; }
+.tag-in  { background: #e4eaf0; color: var(--blue); }
+.tag-out { background: #e2ece3; color: var(--green); }
+.tag-op  { background: #efe4cc; color: var(--amber); }
+
+/* ── Loss chart ── */
+.loss-chart { display: flex; align-items: flex-end; gap: 2px; height: 90px; margin: .5rem 0; }
+.loss-bar { background: var(--accent); border-radius: 2px 2px 0 0; min-width: 3px; flex: 1; }
+.ei { font-size: .78rem; color: var(--text-muted); }
+#lossVal { font-size: 1rem; color: var(--green); font-weight: 700; }
+
+/* ── Sliding window row ── */
+.sw-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.sw-chars { display: flex; gap: 2px; flex-shrink: 0; }
+
+/* ── AI badge ── */
+.ai-badge {
+  position: fixed; z-index: 50;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 24px; cursor: pointer;
+  transition: border-radius 0.3s, max-width 0.35s, box-shadow 0.3s;
+  overflow: visible; width: fit-content; max-width: fit-content;
+  box-shadow: var(--shadow);
+}
+.ai-badge.open { max-width: 280px; border-radius: var(--radius); }
+.ai-badge:hover { border-color: #bbb5a8; box-shadow: 0 2px 16px rgba(0,0,0,.1); }
+.ai-badge-header {
+  display: flex; align-items: center; justify-content: center;
+  padding: 6px 14px; font-size: .8rem; font-weight: 700; white-space: nowrap;
+  color: var(--text-muted); user-select: none; letter-spacing: .05em;
+}
+.ai-badge-body {
+  max-height: 0; width: 0; overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease, width 0.3s ease;
+  padding: 0;
+  font-size: .78rem; line-height: 1.55; color: var(--text-muted);
+}
+.ai-badge.open .ai-badge-body {
+  max-height: 200px; width: auto; padding: .4rem .8rem .6rem;
+}
+.ai-badge-body a {
+  color: var(--accent); text-decoration: none; font-weight: 500;
+  transition: color 0.2s;
+}
+.ai-badge-body a:hover { color: var(--accent-hover); }
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Bigram Language Model</h1>
+<p class="sub">Every transformation visualized — from raw text to trained weights</p>
+
+<!-- ════ STEP 1 ════ -->
+<div class="step">
+  <h2><span class="sn">1</span> Load Raw Text</h2>
+  <pre>words = open('names.txt').read().splitlines()</pre>
+  <p class="desc">The file is one name per line. Read the whole file, split on newlines.</p>
+
+  <div class="flow">
+    <div class="fbox in"><span class="flbl">raw file</span><span class="fval" style="font-size:.7rem">"emma\nolivia\nava\n..."</span></div>
+    <div class="fbox op">.splitlines()</div>
+    <div class="fbox out"><span class="flbl">list of 32,032 words</span><span class="fval" style="font-size:.7rem">["emma", "olivia", "ava", ...]</span></div>
+  </div>
+
+  <div class="visual">
+    <p style="font-size:.7rem;color:var(--text-muted);margin-bottom:.25rem">First 20 words:</p>
+    <div class="word-list" id="wordList"></div>
+  </div>
+</div>
+
+<!-- ════ STEP 2 ════ -->
+<div class="step">
+  <h2><span class="sn">2</span> Build the Alphabet &amp; Index Map</h2>
+  <pre>chars = sorted(set(''.join(words)))
+stoi  = {ch: i for i, ch in enumerate(chars)}
+stoi['.'] = 26</pre>
+  <p class="desc">Extract unique characters, sort, assign each an integer. <code>.</code> is the boundary token (index 26).</p>
+
+  <div class="flow">
+    <div class="fbox in"><span class="flbl">all text</span><span class="fval" style="font-size:.72rem">"emmaoliv..."</span></div>
+    <div class="fbox op">set → sort</div>
+    <div class="fbox out"><span class="flbl">26 unique</span><span class="fval" style="font-size:.72rem">a b c ... z</span></div>
+    <div class="fbox op">+ "."</div>
+    <div class="fbox out"><span class="flbl">27 total</span><span class="fval" style="font-size:.72rem">a..z + .</span></div>
+  </div>
+
+  <div class="visual">
+    <p style="font-size:.7rem;color:var(--text-muted);margin-bottom:.25rem">Index mapping — every character ↔ integer:</p>
+    <div id="alphaGrid"></div>
+  </div>
+</div>
+
+<!-- ════ STEP 3 ════ -->
+<div class="step">
+  <h2><span class="sn">3</span> Add Boundary Tokens</h2>
+  <pre>chars = ['.'] + list(word) + ['.']</pre>
+  <p class="desc">Wrap each word with <code>.</code> so the model learns which letters start/end names.</p>
+
+  <div class="ctrl">
+    <label style="font-size:.76rem;color:var(--text-muted)">Pick a word:</label>
+    <select id="wordSelect" onchange="updateAll()"></select>
+  </div>
+
+  <div class="visual">
+    <p style="font-size:.7rem;color:var(--text-muted);margin-bottom:.2rem">Original:</p>
+    <div id="origWord" style="display:flex;gap:2px;margin-bottom:.4rem"></div>
+    <p style="font-size:.7rem;color:var(--amber);margin-bottom:.2rem">↓ prepend "." + append "."</p>
+    <p style="font-size:.7rem;color:var(--text-muted);margin-bottom:.2rem">With boundaries:</p>
+    <div id="boundWord" style="display:flex;gap:2px"></div>
+  </div>
+</div>
+
+<!-- ════ STEP 4 ════ -->
+<div class="step">
+  <h2><span class="sn">4</span> Extract Bigram Pairs</h2>
+  <pre>for x, y in zip(chars, chars[1:]):
+    xs.append(stoi[x])
+    ys.append(stoi[y])</pre>
+  <p class="desc">Slide a 2-character window across the list. Each position yields one (input, target) pair.</p>
+
+  <div class="visual">
+    <p style="font-size:.7rem;color:var(--text-muted);margin-bottom:.25rem">Sliding window over <b id="pairWordLabel">"emma"</b>:</p>
+    <div id="slidingWindow"></div>
+  </div>
+
+  <div style="margin-top:.5rem">
+    <p style="font-size:.7rem;color:var(--text-muted);margin-bottom:.25rem">All extracted pairs:</p>
+    <div id="pairsList" style="display:flex;flex-wrap:wrap;gap:3px"></div>
+  </div>
+</div>
+
+<!-- ════ STEP 5 ════ -->
+<div class="step">
+  <h2><span class="sn">5</span> Convert Characters → Integers</h2>
+  <p class="desc">Look up each character in the index map from Step 2.</p>
+
+  <div class="visual">
+    <table class="dtable" id="pairTable">
+      <thead><tr><th>#</th><th>Input</th><th class="arr">→</th><th>Index</th><th>Target</th><th class="arr">→</th><th>Index</th></tr></thead>
+      <tbody id="pairTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="flow" style="margin-top:.5rem">
+    <div class="fbox out"><span class="flbl">xs (input indices)</span><span class="fval" id="xsIndices" style="font-size:.76rem"></span></div>
+    <div class="fbox out"><span class="flbl">ys (target indices)</span><span class="fval" id="ysIndices" style="font-size:.76rem"></span></div>
+  </div>
+</div>
+
+<!-- ════ STEP 6 ════ -->
+<div class="step">
+  <h2><span class="sn">6</span> One-Hot Encode the Inputs</h2>
+  <pre>x_encoded = F.one_hot(xs, num_classes=27).float()</pre>
+  <p class="desc">Each integer becomes a 27-element vector: all zeros except a <span style="color:var(--green);font-weight:700">1</span> at that character's position.</p>
+
+  <div class="visual">
+    <p style="font-size:.7rem;color:var(--text-muted);margin-bottom:.25rem">Each input → one-hot row (<span style="color:var(--green)">green</span> = activated bit):</p>
+    <div id="oneHotFull"></div>
+  </div>
+
+  <div class="note"><b>Why one-hot?</b> Multiplying a one-hot vector by W just selects one row of W — it's a lookup disguised as a matrix multiply.</div>
+</div>
+
+<!-- ════ STEP 7 ════ -->
+<div class="step">
+  <h2><span class="sn">7</span> Forward Pass</h2>
+  <p class="desc">Trace the math for one pair through the full forward pass.</p>
+  <div class="ctrl">
+    <label style="font-size:.76rem;color:var(--text-muted)">Trace pair:</label>
+    <select id="pairSelect" onchange="updateForward()"></select>
+  </div>
+
+  <!-- 7a -->
+  <h3><span class="tag tag-op">7a</span> Logits = one_hot × W</h3>
+  <p class="desc">The one-hot vector picks row <span id="fwdRowIdx" style="color:var(--blue)">?</span> out of W. That row = the logits.</p>
+  <div class="visual" id="matmulVisual"></div>
+
+  <!-- 7b -->
+  <h3><span class="tag tag-op">7b</span> Counts = exp(logits)</h3>
+  <p class="desc">Exponentiate every logit → all positive. Negative logit = small count, positive = large.</p>
+  <div class="visual" id="expVisual"></div>
+
+  <!-- 7c -->
+  <h3><span class="tag tag-op">7c</span> Probs = counts ÷ sum(counts)</h3>
+  <p class="desc">Normalize so they sum to 1. This is the softmax operation.</p>
+  <div class="visual" id="normVisual"></div>
+  <p style="font-size:.7rem;color:var(--text-muted);margin:.4rem 0 .2rem">Probability distribution (target = <span style="color:var(--green)">green</span>, top 12 shown):</p>
+  <div id="probBars"></div>
+
+  <!-- 7d -->
+  <h3><span class="tag tag-op">7d</span> Loss = −log(prob of correct answer)</h3>
+  <p class="desc">How surprised is the model? Lower probability → higher loss.</p>
+  <div class="visual" id="lossVisual"></div>
+  <div class="note">
+    <b>Reference:</b> prob=1.0 → loss=0 (perfect) · prob=1/27≈.037 → loss≈3.3 (random) · prob→0 → loss→∞
+  </div>
+</div>
+
+<!-- ════ STEP 8 ════ -->
+<div class="step">
+  <h2><span class="sn">8</span> Backward Pass &amp; Weight Update</h2>
+  <pre>W.grad = None
+loss.backward()
+W.data += -0.001 * W.grad</pre>
+  <p class="desc">Compute how much each of the 729 weights influenced the loss, then nudge each one to reduce it.</p>
+  <div class="visual" id="updateVisual"></div>
+  <div class="note">
+    <b>grad &gt; 0:</b> weight pushes loss up → subtract &nbsp;·&nbsp;
+    <b>grad &lt; 0:</b> weight pushes loss down → add &nbsp;·&nbsp;
+    <b>lr = 0.001:</b> tiny steps
+  </div>
+</div>
+
+<!-- ════ STEP 9 ════ -->
+<div class="step">
+  <h2><span class="sn">9</span> Training Loop</h2>
+  <p class="desc">Repeat steps 7–8 for 150 epochs over all examples.</p>
+  <div class="ctrl">
+    <button id="trainBtn" onclick="startTraining()">Train 150 Epochs</button>
+    <button class="sec" onclick="resetTraining()">Reset</button>
+    <span class="ei">Epoch: <b id="epochNum">0</b>/150</span>
+    <span class="ei">Loss: <span id="lossVal">—</span></span>
+  </div>
+  <div class="loss-chart" id="lossChart"></div>
+  <div class="note"><b>Expected:</b> loss ~3.3 (random) → ~2.4 (learned bigram frequencies).</div>
+</div>
+
+<script>
+const CH = 'abcdefghijklmnopqrstuvwxyz.';
+const N = 27;
+const WORDS = ["emma","olivia","ava","isabella","sophia","charlotte","mia","amelia","harper","evelyn",
+               "abigail","emily","elizabeth","mila","ella","avery","sofia","camila","aria","scarlett"];
+
+const stoi = {}; const itos = {};
+for (let i = 0; i < 26; i++) { stoi[CH[i]] = i; itos[i] = CH[i]; }
+stoi['.'] = 26; itos[26] = '.';
+
+let W = [];
+function initW() { W = []; for (let i = 0; i < N; i++) { W[i] = []; for (let j = 0; j < N; j++) W[i][j] = randn(); } }
+function randn() { return Math.sqrt(-2 * Math.log(Math.random())) * Math.cos(2 * Math.PI * Math.random()); }
+function softmax(a) { const m = Math.max(...a); const e = a.map(x => Math.exp(x - m)); const s = e.reduce((a, b) => a + b); return e.map(x => x / s); }
+
+initW();
+
+/* ── Populate word select ── */
+const wSel = document.getElementById('wordSelect');
+WORDS.forEach(w => { const o = document.createElement('option'); o.value = w; o.textContent = w; wSel.appendChild(o); });
+
+/* ── Alphabet grid ── */
+(function() {
+  const el = document.getElementById('alphaGrid');
+  let h = '<div class="grid" style="grid-template-columns:repeat(27,24px)">';
+  for (let i = 0; i < N; i++) h += `<div class="gc on">${CH[i]}</div>`;
+  h += '</div><div class="grid" style="grid-template-columns:repeat(27,24px)">';
+  for (let i = 0; i < N; i++) h += `<div class="gc" style="background:rgba(0,0,0,.04);color:var(--text-muted);font-size:.6rem">${i}</div>`;
+  h += '</div>';
+  el.innerHTML = h;
+})();
+
+/* ── Word list ── */
+(function() {
+  const el = document.getElementById('wordList');
+  WORDS.forEach(w => { el.innerHTML += `<div class="word-chip">${w}</div>`; });
+  el.innerHTML += '<div class="word-chip" style="color:var(--text-muted)">... 32,012 more</div>';
+})();
+
+/* ── Helpers ── */
+function getWord()  { return wSel.value; }
+function getChars(w) { return ['.', ...w.split(''), '.']; }
+function getPairs(chars) { const p = []; for (let i = 0; i < chars.length - 1; i++) p.push([chars[i], chars[i+1]]); return p; }
+function charCls(c) { return c === '.' ? 'boundary' : 'letter'; }
+function charBox(c, extra) { return `<div class="char-box ${charCls(c)}"${extra||''}>${c}</div>`; }
+
+/* ── Main update ── */
+function updateAll() {
+  const w = getWord();
+  const chars = getChars(w);
+  const pairs = getPairs(chars);
+
+  // Step 3: original + bounded
+  document.getElementById('origWord').innerHTML = w.split('').map(c => charBox(c)).join('');
+  document.getElementById('boundWord').innerHTML = chars.map(c => charBox(c)).join('');
+
+  // Step 4: sliding window
+  document.getElementById('pairWordLabel').textContent = `"${w}"`;
+  const sw = document.getElementById('slidingWindow');
+  let swH = '';
+  for (let i = 0; i < chars.length - 1; i++) {
+    swH += '<div class="sw-row"><div class="sw-chars">';
+    for (let j = 0; j < chars.length; j++) {
+      const hl = (j === i || j === i + 1);
+      swH += `<div class="char-box ${charCls(chars[j])}${hl ? '' : ' dim'}" style="width:24px;height:24px;font-size:.72rem">${chars[j]}</div>`;
+    }
+    swH += `</div><span style="color:var(--amber);font-size:1rem;margin:0 4px">→</span>`;
+    swH += `<div class="pair">${charBox(chars[i],' style="width:22px;height:22px;font-size:.7rem"')}<span class="pa">→</span>${charBox(chars[i+1],' style="width:22px;height:22px;font-size:.7rem"')}</div>`;
+    swH += '</div>';
+  }
+  sw.innerHTML = swH;
+
+  // Pairs list
+  const pl = document.getElementById('pairsList');
+  pl.innerHTML = pairs.map(([a, b]) =>
+    `<div class="pair"><span class="tag tag-in">${a}</span><span class="pa">→</span><span class="tag tag-out">${b}</span></div>`
+  ).join('');
+
+  // Step 5: integer conversion table
+  const tb = document.getElementById('pairTableBody');
+  tb.innerHTML = pairs.map(([a, b], i) =>
+    `<tr>
+      <td style="color:var(--text-muted)">${i+1}</td>
+      <td>${charBox(a,' style="width:22px;height:22px;font-size:.7rem;display:inline-flex"')}</td>
+      <td class="arr">→</td>
+      <td style="color:var(--blue);font-weight:700">${stoi[a]}</td>
+      <td>${charBox(b,' style="width:22px;height:22px;font-size:.7rem;display:inline-flex"')}</td>
+      <td class="arr">→</td>
+      <td style="color:var(--green);font-weight:700">${stoi[b]}</td>
+    </tr>`
+  ).join('');
+
+  document.getElementById('xsIndices').textContent = '[' + pairs.map(([a]) => stoi[a]).join(', ') + ']';
+  document.getElementById('ysIndices').textContent = '[' + pairs.map(([,b]) => stoi[b]).join(', ') + ']';
+
+  // Step 6: one-hot grid
+  const ohEl = document.getElementById('oneHotFull');
+  let ohH = `<div class="grid" style="grid-template-columns:50px repeat(${N},24px)">`;
+  // header
+  ohH += '<div class="gc hdr"></div>';
+  for (let j = 0; j < N; j++) ohH += `<div class="gc hdr">${CH[j]}</div>`;
+  // rows
+  pairs.forEach(([a]) => {
+    const idx = stoi[a];
+    ohH += `<div class="gc hdr" style="color:var(--blue);font-size:.6rem;width:50px">${a}→${idx}</div>`;
+    for (let j = 0; j < N; j++) {
+      ohH += `<div class="gc ${j === idx ? 'hot' : 'off'}">${j === idx ? '1' : '0'}</div>`;
+    }
+  });
+  ohH += '</div>';
+  ohEl.innerHTML = ohH;
+
+  // Pair select for forward pass
+  const ps = document.getElementById('pairSelect');
+  ps.innerHTML = pairs.map(([a, b], i) =>
+    `<option value="${i}">${i+1}: ${a} → ${b}</option>`
+  ).join('');
+
+  updateForward();
+}
+
+/* ── Forward pass update ── */
+function updateForward() {
+  const w = getWord();
+  const chars = getChars(w);
+  const pairs = getPairs(chars);
+  const pi = parseInt(document.getElementById('pairSelect').value) || 0;
+  const [inCh, tCh] = pairs[pi];
+  const inIdx = stoi[inCh], tIdx = stoi[tCh];
+
+  document.getElementById('fwdRowIdx').textContent = `${inIdx} ("${inCh}")`;
+
+  const logits = W[inIdx].slice();
+  const counts = logits.map(v => Math.exp(v));
+  const cSum = counts.reduce((a, b) => a + b, 0);
+  const probs = softmax(logits);
+
+  // 7a: matmul
+  const mmEl = document.getElementById('matmulVisual');
+  // Show the row extraction as a compact colored strip
+  let mmH = '<div class="flow">';
+  mmH += `<div class="fbox in"><span class="flbl">one_hot[${inIdx}] (1×27)</span><span class="fval" style="font-size:.68rem">all 0 except position ${inIdx} = 1</span></div>`;
+  mmH += '<div class="fbox op">×</div>';
+  mmH += `<div class="fbox in"><span class="flbl">W (27×27)</span><span class="fval" style="font-size:.72rem">→ selects row ${inIdx}</span></div>`;
+  mmH += '<div class="fbox op">=</div>';
+  mmH += `<div class="fbox out"><span class="flbl">logits (27)</span><span class="fval" style="font-size:.68rem">[${logits.slice(0,4).map(v=>v.toFixed(2)).join(', ')}, ...]</span></div>`;
+  mmH += '</div>';
+  // color strip of all 27 logits
+  mmH += '<p style="font-size:.68rem;color:var(--text-muted);margin:.3rem 0 .15rem">Row ' + inIdx + ' of W — all 27 logit values (<span style="color:var(--blue)">blue</span>=positive, <span style="color:var(--red)">red</span>=negative):</p>';
+  mmH += `<div class="grid" style="grid-template-columns:repeat(${N},24px)">`;
+  for (let j = 0; j < N; j++) mmH += `<div class="gc hdr">${CH[j]}</div>`;
+  for (let j = 0; j < N; j++) {
+    const v = logits[j];
+    const int = Math.min(Math.abs(v) / 3, 1);
+    const col = v > 0 ? `rgba(91,122,158,${int})` : `rgba(168,90,83,${int})`;
+    const txtCol = int > 0.5 ? '#fff' : 'var(--text)';
+    mmH += `<div class="gc" style="background:${col};color:${txtCol};font-size:.52rem" title="${CH[j]}: ${v.toFixed(3)}">${v.toFixed(1)}</div>`;
+  }
+  mmH += '</div>';
+  mmEl.innerHTML = mmH;
+
+  // 7b: exp table
+  const expEl = document.getElementById('expVisual');
+  let eH = '<table class="dtable"><thead><tr><th>char</th><th>logit</th><th class="arr">→ exp()</th><th>count</th></tr></thead><tbody>';
+  for (let j = 0; j < 6; j++) {
+    eH += `<tr>
+      <td style="color:var(--blue)">${CH[j]}</td>
+      <td>${logits[j].toFixed(3)}</td>
+      <td class="arr">e<sup>${logits[j].toFixed(2)}</sup> =</td>
+      <td style="color:var(--green);font-weight:700">${counts[j].toFixed(3)}</td>
+    </tr>`;
+  }
+  eH += '<tr><td colspan="4" style="color:var(--text-muted)">... 21 more</td></tr></tbody></table>';
+  expEl.innerHTML = eH;
+
+  // 7c: normalize table
+  const nEl = document.getElementById('normVisual');
+  let nH = `<table class="dtable"><thead><tr><th>char</th><th>count</th><th class="arr">÷ ${cSum.toFixed(1)}</th><th>probability</th></tr></thead><tbody>`;
+  for (let j = 0; j < 6; j++) {
+    const isT = j === tIdx;
+    const st = isT ? 'color:var(--green);font-weight:700' : '';
+    nH += `<tr>
+      <td style="color:var(--blue)">${CH[j]}${isT ? ' <span class="tag tag-out">target</span>' : ''}</td>
+      <td>${counts[j].toFixed(3)}</td>
+      <td class="arr">÷</td>
+      <td style="${st}">${probs[j].toFixed(5)} (${(probs[j]*100).toFixed(1)}%)</td>
+    </tr>`;
+  }
+  nH += '<tr><td colspan="4" style="color:var(--text-muted)">... 21 more</td></tr></tbody></table>';
+  nEl.innerHTML = nH;
+
+  // Prob bars — top 12 only
+  const bEl = document.getElementById('probBars');
+  const sorted = probs.map((p, i) => ({p, i})).sort((a, b) => b.p - a.p);
+  const top = sorted.slice(0, 12);
+  // ensure target is shown
+  if (!top.find(t => t.i === tIdx)) { top.pop(); top.push(sorted.find(t => t.i === tIdx)); }
+  const maxP = top[0].p;
+  bEl.innerHTML = top.map(({p, i}) => {
+    const isT = i === tIdx;
+    const color = isT ? 'var(--green)' : 'var(--blue)';
+    const lbl = isT ? `<b style="color:var(--green)">${CH[i]}</b>` : CH[i];
+    return `<div class="bar-row">
+      <div class="bar-lbl">${lbl}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(p/maxP)*100}%;background:${color}"></div></div>
+      <div class="bar-val">${(p*100).toFixed(1)}%</div>
+    </div>`;
+  }).join('');
+
+  // 7d: loss
+  const lEl = document.getElementById('lossVisual');
+  const tProb = probs[tIdx];
+  const loss = -Math.log(tProb);
+  const lossColor = loss > 2.5 ? 'var(--red)' : loss > 1 ? 'var(--amber)' : 'var(--green)';
+  lEl.innerHTML = `
+    <div class="flow">
+      <div class="fbox in"><span class="flbl">prob["${CH[tIdx]}"]</span><span class="fval">${tProb.toFixed(5)}</span></div>
+      <div class="fbox op">−log()</div>
+      <div class="fbox out"><span class="flbl">loss</span><span class="fval" style="color:${lossColor}">${loss.toFixed(4)}</span></div>
+    </div>
+    <div style="margin-top:.3rem;font-size:.76rem;color:var(--text-muted)">−log(${tProb.toFixed(5)}) = ${loss.toFixed(4)}</div>`;
+
+  // Step 8: update
+  const uEl = document.getElementById('updateVisual');
+  let uH = '<table class="dtable"><thead><tr><th>weight</th><th>old</th><th>gradient</th><th>−lr × grad</th><th>new</th></tr></thead><tbody>';
+  for (let j = 0; j < 4; j++) {
+    const grad = probs[j] - (j === tIdx ? 1 : 0);
+    const delta = -0.001 * grad;
+    const oldV = W[inIdx][j];
+    const newV = oldV + delta;
+    const gc = grad > 0 ? 'var(--red)' : 'var(--green)';
+    uH += `<tr>
+      <td style="color:var(--blue)">W[${CH[inIdx]}][${CH[j]}]</td>
+      <td>${oldV.toFixed(4)}</td>
+      <td style="color:${gc}">${grad >= 0 ? '+' : ''}${grad.toFixed(4)}</td>
+      <td style="color:var(--amber)">${delta >= 0 ? '+' : ''}${delta.toFixed(6)}</td>
+      <td style="color:var(--green);font-weight:700">${newV.toFixed(4)}</td>
+    </tr>`;
+  }
+  uH += '<tr><td colspan="5" style="color:var(--text-muted)">... 23 more in this row · ×27 rows = 729 total</td></tr></tbody></table>';
+  uEl.innerHTML = uH;
+}
+
+/* ── Training simulation ── */
+const BIGRAM_T = buildTarget();
+function buildTarget() {
+  const d = []; for (let i = 0; i < N; i++) { d[i] = []; for (let j = 0; j < N; j++) d[i][j] = 1; }
+  const c = {
+    '.':{'a':8,'b':3,'c':4,'d':4,'e':5,'j':5,'k':4,'l':4,'m':6,'n':3,'s':5,'t':4},
+    'a':{'b':2,'d':3,'i':2,'l':5,'m':3,'n':7,'r':5,'s':3,'t':3,'.':4},
+    'e':{'l':5,'n':5,'r':4,'s':3,'a':3,'.':3},
+    'i':{'a':4,'e':3,'l':3,'n':5,'s':3},
+    'o':{'n':5,'r':3,'l':2},
+    'q':{'u':15}
+  };
+  for (const [ch, ts] of Object.entries(c)) {
+    const ci = CH.indexOf(ch);
+    for (const [t, w] of Object.entries(ts)) {
+      const ti = CH.indexOf(t);
+      if (ci >= 0 && ti >= 0) d[ci][ti] = w;
+    }
+  }
+  for (let i = 0; i < N; i++) { const s = d[i].reduce((a, b) => a + b); for (let j = 0; j < N; j++) d[i][j] /= s; }
+  return d;
+}
+
+let trainInt = null, epoch = 0, losses = [], trainW = [];
+
+function resetTraining() {
+  if (trainInt) clearInterval(trainInt);
+  trainInt = null; epoch = 0; losses = [];
+  initW(); updateAll();
+  document.getElementById('epochNum').textContent = '0';
+  document.getElementById('lossVal').textContent = '—';
+  document.getElementById('lossChart').innerHTML = '';
+  document.getElementById('trainBtn').disabled = false;
+}
+
+function startTraining() {
+  document.getElementById('trainBtn').disabled = true;
+  trainW = W.map(r => r.slice()); epoch = 0; losses = [];
+
+  trainInt = setInterval(() => {
+    if (epoch >= 150) {
+      clearInterval(trainInt);
+      document.getElementById('trainBtn').disabled = false;
+      W = trainW.map(r => r.slice());
+      updateForward();
+      return;
+    }
+    let tl = 0;
+    const gW = trainW.map(r => r.map(() => 0));
+    for (let i = 0; i < N; i++) {
+      const p = softmax(trainW[i]);
+      for (let j = 0; j < N; j++) {
+        tl += -BIGRAM_T[i][j] * Math.log(p[j] + 1e-9);
+        gW[i][j] += (p[j] - BIGRAM_T[i][j]);
+      }
+    }
+    tl /= N;
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) trainW[i][j] -= .5 * gW[i][j] / N;
+    epoch++; losses.push(tl);
+
+    document.getElementById('epochNum').textContent = epoch;
+    document.getElementById('lossVal').textContent = tl.toFixed(4);
+
+    const chart = document.getElementById('lossChart');
+    const mx = Math.max(...losses);
+    chart.innerHTML = losses.map((l, k) =>
+      `<div class="loss-bar" style="height:${(l/mx)*85}px;opacity:${.4+.6*(k/losses.length)}" title="Epoch ${k+1}: ${l.toFixed(4)}"></div>`
+    ).join('');
+  }, 40);
+}
+
+/* ── Init ── */
+updateAll();
+</script>
+</div>
+
+<div class="ai-badge" id="aiBadge">
+  <div class="ai-badge-header">[ AI ]</div>
+  <div class="ai-badge-body">
+    The visual content and walkthrough on this page were AI generated.
+    The model logic is ported from
+    <a href="https://github.com/Ahmed-Elawad/observe" target="_blank" rel="noopener">Ahmed-Elawad/observe</a>.
+  </div>
+</div>
+
+<script>
+(function() {
+  const badge = document.getElementById('aiBadge');
+  const pad   = 16;                       // margin from edges
+  const speed = 1.5;                      // px per frame
+
+  // start bottom-right
+  let x = window.innerWidth  - badge.offsetWidth  - pad;
+  let y = window.innerHeight - badge.offsetHeight - pad;
+  let vx = speed, vy = speed * 0.73;     // slight angle
+
+  badge.style.left = x + 'px';
+  badge.style.top  = y + 'px';
+
+  badge.addEventListener('click', function(e) {
+    e.stopPropagation();
+    badge.classList.toggle('open');
+  });
+
+  function tick() {
+    if (!badge.classList.contains('open')) {
+      const w = badge.offsetWidth, h = badge.offsetHeight;
+      const maxX = window.innerWidth  - w - pad;
+      const maxY = window.innerHeight - h - pad;
+
+      x += vx; y += vy;
+
+      if (x <= pad)  { x = pad;  vx = Math.abs(vx); }
+      if (x >= maxX) { x = maxX; vx = -Math.abs(vx); }
+      if (y <= pad)  { y = pad;  vy = Math.abs(vy); }
+      if (y >= maxY) { y = maxY; vy = -Math.abs(vy); }
+
+      badge.style.left = x + 'px';
+      badge.style.top  = y + 'px';
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+
+</body>
+</html>
