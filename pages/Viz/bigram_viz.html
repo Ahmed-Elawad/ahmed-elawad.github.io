@@ -129,7 +129,23 @@ button { background: var(--accent); color: var(--surface); border: none; padding
 button:hover { background: var(--accent-hover); }
 button.sec { background: rgba(0,0,0,.06); color: var(--text); }
 button.sec:hover { background: rgba(0,0,0,.1); }
-select { background: var(--surface); color: var(--text); border: 1px solid var(--border); padding: .25rem .5rem; border-radius: 6px; font-family: inherit; font-size: .8rem; }
+.pick-group { display: flex; flex-wrap: wrap; gap: 5px; margin: .4rem 0; }
+.pick {
+  background: rgba(0,0,0,.04); border: 1px solid transparent; border-radius: 6px;
+  padding: 3px 9px; font-size: .8rem; font-family: inherit; cursor: pointer;
+  color: var(--text); font-weight: 400; transition: all 0.15s;
+}
+.pick:hover { background: rgba(0,0,0,.08); border-color: var(--border); }
+.pick.active { background: var(--accent); color: var(--surface); border-color: var(--accent); font-weight: 600; }
+.pair-pick {
+  display: inline-flex; align-items: center; gap: 3px; background: rgba(0,0,0,.03);
+  border: 1px solid transparent; border-radius: 6px; padding: 3px 8px; cursor: pointer;
+  transition: all 0.15s; font-size: .82rem;
+}
+.pair-pick:hover { background: rgba(0,0,0,.07); border-color: var(--border); }
+.pair-pick.active { background: var(--accent); border-color: var(--accent); }
+.pair-pick.active .tag-in, .pair-pick.active .tag-out { color: var(--surface); background: rgba(255,255,255,.15); }
+.pair-pick.active .pa { color: rgba(255,255,255,.7); }
 
 /* ── Tags ── */
 .tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: .7rem; font-weight: 600; }
@@ -242,9 +258,9 @@ stoi['.'] = 26</pre>
   <pre>chars = ['.'] + list(word) + ['.']</pre>
   <p class="desc">Wrap each word with <code>.</code> so the model learns which letters start/end names.</p>
 
-  <div class="ctrl">
-    <label style="font-size:.76rem;color:var(--text-muted)">Pick a word:</label>
-    <select id="wordSelect" onchange="updateAll()"></select>
+  <div style="margin:.4rem 0">
+    <span style="font-size:.76rem;color:var(--text-muted)">Pick a word:</span>
+    <div class="pick-group" id="wordPicks"></div>
   </div>
 
   <div class="visual">
@@ -304,16 +320,16 @@ stoi['.'] = 26</pre>
     <div id="oneHotFull"></div>
   </div>
 
-  <div class="note"><b>Why one-hot?</b> Multiplying a one-hot vector by W just selects one row of W — it's a lookup disguised as a matrix multiply.</div>
+  <!-- <div class="note"><b>Why one-hot?</b> Multiplying a one-hot vector by W just selects one row of W — it's a lookup disguised as a matrix multiply.</div> -->
 </div>
 
 <!-- ════ STEP 7 ════ -->
 <div class="step">
   <h2><span class="sn">7</span> Forward Pass</h2>
   <p class="desc">Trace the math for one pair through the full forward pass.</p>
-  <div class="ctrl">
-    <label style="font-size:.76rem;color:var(--text-muted)">Trace pair:</label>
-    <select id="pairSelect" onchange="updateForward()"></select>
+  <div style="margin:.4rem 0">
+    <span style="font-size:.76rem;color:var(--text-muted)">Trace pair:</span>
+    <div class="pick-group" id="pairPicks"></div>
   </div>
 
   <!-- 7a -->
@@ -337,9 +353,9 @@ stoi['.'] = 26</pre>
   <h3><span class="tag tag-op">7d</span> Loss = −log(prob of correct answer)</h3>
   <p class="desc">How surprised is the model? Lower probability → higher loss.</p>
   <div class="visual" id="lossVisual"></div>
-  <div class="note">
+  <!-- <div class="note">
     <b>Reference:</b> prob=1.0 → loss=0 (perfect) · prob=1/27≈.037 → loss≈3.3 (random) · prob→0 → loss→∞
-  </div>
+  </div> -->
 </div>
 
 <!-- ════ STEP 8 ════ -->
@@ -368,7 +384,7 @@ W.data += -0.001 * W.grad</pre>
     <span class="ei">Loss: <span id="lossVal">—</span></span>
   </div>
   <div class="loss-chart" id="lossChart"></div>
-  <div class="note"><b>Expected:</b> loss ~3.3 (random) → ~2.4 (learned bigram frequencies).</div>
+  <!-- <div class="note"><b>Expected:</b> loss ~3.3 (random) → ~2.4 (learned bigram frequencies).</div> -->
 </div>
 
 <script>
@@ -388,9 +404,20 @@ function softmax(a) { const m = Math.max(...a); const e = a.map(x => Math.exp(x 
 
 initW();
 
-/* ── Populate word select ── */
-const wSel = document.getElementById('wordSelect');
-WORDS.forEach(w => { const o = document.createElement('option'); o.value = w; o.textContent = w; wSel.appendChild(o); });
+/* ── Populate word picks ── */
+const wordPicks = document.getElementById('wordPicks');
+WORDS.forEach((w, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'pick' + (i === 0 ? ' active' : '');
+  btn.dataset.word = w;
+  btn.textContent = w;
+  btn.addEventListener('click', function() {
+    wordPicks.querySelector('.active').classList.remove('active');
+    this.classList.add('active');
+    updateAll();
+  });
+  wordPicks.appendChild(btn);
+});
 
 /* ── Alphabet grid ── */
 (function() {
@@ -411,7 +438,7 @@ WORDS.forEach(w => { const o = document.createElement('option'); o.value = w; o.
 })();
 
 /* ── Helpers ── */
-function getWord()  { return wSel.value; }
+function getWord() { var a = document.querySelector('#wordPicks .pick.active'); return a ? a.dataset.word : 'emma'; }
 function getChars(w) { return ['.', ...w.split(''), '.']; }
 function getPairs(chars) { const p = []; for (let i = 0; i < chars.length - 1; i++) p.push([chars[i], chars[i+1]]); return p; }
 function charCls(c) { return c === '.' ? 'boundary' : 'letter'; }
@@ -483,11 +510,18 @@ function updateAll() {
   ohH += '</div>';
   ohEl.innerHTML = ohH;
 
-  // Pair select for forward pass
-  const ps = document.getElementById('pairSelect');
-  ps.innerHTML = pairs.map(([a, b], i) =>
-    `<option value="${i}">${i+1}: ${a} → ${b}</option>`
+  // Pair picks for forward pass
+  const pp = document.getElementById('pairPicks');
+  pp.innerHTML = pairs.map(([a, b], i) =>
+    `<button class="pair-pick${i === 0 ? ' active' : ''}" data-idx="${i}"><span class="tag tag-in">${a}</span><span class="pa">\u2192</span><span class="tag tag-out">${b}</span></button>`
   ).join('');
+  pp.querySelectorAll('.pair-pick').forEach(btn => {
+    btn.addEventListener('click', function() {
+      pp.querySelector('.active').classList.remove('active');
+      this.classList.add('active');
+      updateForward();
+    });
+  });
 
   updateForward();
 }
@@ -497,7 +531,8 @@ function updateForward() {
   const w = getWord();
   const chars = getChars(w);
   const pairs = getPairs(chars);
-  const pi = parseInt(document.getElementById('pairSelect').value) || 0;
+  var pairActive = document.querySelector('#pairPicks .pair-pick.active');
+  const pi = pairActive ? parseInt(pairActive.dataset.idx) : 0;
   const [inCh, tCh] = pairs[pi];
   const inIdx = stoi[inCh], tIdx = stoi[tCh];
 
@@ -650,15 +685,19 @@ function resetTraining() {
 }
 
 function startTraining() {
+  if (trainInt) return;
   document.getElementById('trainBtn').disabled = true;
+  initW();
   trainW = W.map(r => r.slice()); epoch = 0; losses = [];
+  document.getElementById('lossChart').innerHTML = '';
 
   trainInt = setInterval(() => {
     if (epoch >= 150) {
       clearInterval(trainInt);
+      trainInt = null;
       document.getElementById('trainBtn').disabled = false;
       W = trainW.map(r => r.slice());
-      updateForward();
+      updateAll();
       return;
     }
     let tl = 0;

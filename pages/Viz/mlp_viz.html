@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MLP — Interactive Visualization</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+:root {
+  --bg: #f0ece4;
+  --bg-dark: #a7a196;
+  --text: #2c2c2c;
+  --text-muted: #7a7a7a;
+  --accent: #4a4a4a;
+  --accent-hover: #1a1a1a;
+  --surface: #faf8f4;
+  --border: #ddd8cf;
+  --radius: 10px;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --blue: #5b7a9e;
+  --green: #6a8f6e;
+  --amber: #9e7c4a;
+  --red: #a85a53;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  background-image: linear-gradient(to bottom, var(--bg) 50%, var(--bg-dark) 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  line-height: 1.7;
+  min-height: 100vh;
+  padding: 0;
+}
+.page { max-width: 780px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: .2rem; }
+h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: .5rem; letter-spacing: -0.01em; }
+.sub { color: var(--text-muted); font-size: .88rem; margin-bottom: 1.5rem; }
+.desc { color: var(--text-muted); font-size: .85rem; margin: .3rem 0 .5rem; }
+.step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.3rem 1.4rem;
+  margin-bottom: 1rem;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.step:hover { border-color: #bbb5a8; box-shadow: var(--shadow); }
+.note { background: rgba(0,0,0,0.03); border-left: 3px solid var(--accent); padding: .5rem 1rem; margin: .6rem 0; font-size: .8rem; color: var(--text-muted); border-radius: 0 var(--radius) var(--radius) 0; }
+.note b { color: var(--text); }
+.ctrl { margin: .5rem 0; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.lbl { font-size: .76rem; color: var(--text-muted); }
+button { background: var(--accent); color: var(--surface); border: none; padding: .35rem .9rem; border-radius: 6px; font-family: inherit; font-size: .8rem; font-weight: 600; cursor: pointer; transition: color 0.2s, background 0.2s; }
+button:hover { background: var(--accent-hover); }
+button.sec { background: rgba(0,0,0,.06); color: var(--text); }
+button.sec:hover { background: rgba(0,0,0,.1); }
+select, input[type="text"], input[type="number"] {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  padding: .25rem .5rem; border-radius: 6px; font-family: inherit; font-size: .8rem;
+}
+.ei { font-size: .78rem; color: var(--text-muted); }
+#lossVal { font-size: 1rem; color: var(--green); font-weight: 700; }
+.loss-chart { display: flex; align-items: flex-end; gap: 2px; height: 90px; margin: .5rem 0; }
+.loss-bar { background: var(--accent); border-radius: 2px 2px 0 0; min-width: 3px; flex: 1; }
+
+#waveCanvas { width: 100%; height: auto; display: block; border-radius: var(--radius); }
+#netSvg { width: 100%; display: block; margin: .5rem 0; }
+.weight-editor {
+  background: rgba(0,0,0,0.03); border-radius: var(--radius);
+  padding: .8rem 1rem; margin-top: .5rem; display: none;
+}
+.weight-editor.active { display: block; }
+.weight-editor input[type="range"] { flex: 1; min-width: 150px; }
+.weight-val { font-weight: 700; font-size: .85rem; min-width: 55px; text-align: right; }
+.legend { display: flex; gap: 1rem; margin: .4rem 0; font-size: .72rem; color: var(--text-muted); }
+.legend-item { display: flex; align-items: center; gap: .3rem; }
+.legend-dot { width: 18px; height: 3px; border-radius: 2px; }
+.chip-group { display: flex; gap: 4px; flex-wrap: wrap; }
+.chip {
+  background: rgba(0,0,0,.04); color: var(--text); border: 1px solid var(--border);
+  padding: .2rem .65rem; border-radius: 6px; font-family: inherit; font-size: .78rem;
+  font-weight: 500; cursor: pointer; transition: all 0.15s; line-height: 1.4;
+}
+.chip:hover { border-color: #bbb5a8; background: rgba(0,0,0,.08); }
+.chip.active { background: var(--accent); color: var(--surface); border-color: var(--accent); font-weight: 600; }
+
+/* ── AI badge ── */
+.ai-badge {
+  position: fixed; z-index: 50;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 24px; cursor: pointer;
+  transition: border-radius 0.3s, max-width 0.35s, box-shadow 0.3s;
+  overflow: visible; width: fit-content; max-width: fit-content;
+  box-shadow: var(--shadow);
+}
+.ai-badge.open { max-width: 280px; border-radius: var(--radius); }
+.ai-badge:hover { border-color: #bbb5a8; box-shadow: 0 2px 16px rgba(0,0,0,.1); }
+.ai-badge-header {
+  display: flex; align-items: center; justify-content: center;
+  padding: 6px 14px; font-size: .8rem; font-weight: 700; white-space: nowrap;
+  color: var(--text-muted); user-select: none; letter-spacing: .05em;
+}
+.ai-badge-body {
+  max-height: 0; width: 0; overflow: hidden;
+  transition: max-height 0.3s ease, padding 0.3s ease, width 0.3s ease;
+  padding: 0;
+  font-size: .78rem; line-height: 1.55; color: var(--text-muted);
+}
+.ai-badge.open .ai-badge-body {
+  max-height: 200px; width: auto; padding: .4rem .8rem .6rem;
+}
+.ai-badge-body a {
+  color: var(--accent); text-decoration: none; font-weight: 500;
+  transition: color 0.2s;
+}
+.ai-badge-body a:hover { color: var(--accent-hover); }
+</style>
+</head>
+<body>
+  <nav>
+    <a class="brand" href="/">Ahmed.E</a>
+    <a class="nav-link" href="https://www.linkedin.com/in/ahmedelawad/">
+      <img src="/resources/linkedin.svg" alt="LinkedIn" />
+      LinkedIn
+    </a>
+    <a class="nav-link" href="https://github.com/Ahmed-Elawad">
+      <img src="/resources/github.svg" alt="GitHub" />
+      Github
+    </a>
+  </nav>
+<div class="page">
+
+<h1>Multi-Layer Perceptron</h1>
+<p class="sub">Adjust weights manually or train with gradient descent to match a target wave</p>
+
+<!-- ════ OUTPUT CHART ════ -->
+<div class="step">
+  <h2>Output vs Target</h2>
+  <p class="desc"><span style="color:var(--blue);font-weight:600">Blue</span> = network prediction. <span style="color:var(--green);font-weight:600">Green dashed</span> = target. Adjust weights or train to make them match.</p>
+  <canvas id="waveCanvas" width="1400" height="560"></canvas>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> Predicted</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Target sin(x)</div>
+    <div class="legend-item"><div style="width:7px;height:7px;border-radius:50%;background:var(--green)"></div> Training points</div>
+  </div>
+</div>
+
+<!-- ════ NETWORK ════ -->
+<div class="step">
+  <h2>Network</h2>
+  <p class="desc">Click a connection to edit its weight. Click a neuron to edit its bias.</p>
+  <div class="ctrl">
+    <span class="lbl">Architecture:</span>
+    <div class="chip-group" id="archChips">
+      <button class="chip" data-arch="4">4</button>
+      <button class="chip active" data-arch="4, 4">4, 4</button>
+      <button class="chip" data-arch="8, 8">8, 8</button>
+      <button class="chip" data-arch="4, 8, 4">4, 8, 4</button>
+      <button class="chip" data-arch="16">16</button>
+    </div>
+    <button class="sec" onclick="randomizeWeights()">Randomize</button>
+  </div>
+  <svg id="netSvg"></svg>
+  <div class="weight-editor" id="weightEditor">
+    <div class="ctrl">
+      <span class="lbl" id="weightLabel">—</span>
+      <input type="range" id="weightSlider" min="-3" max="3" step="0.01" value="0">
+      <span class="weight-val" id="weightDisplay">0.00</span>
+    </div>
+  </div>
+  <div class="note"><b>Blue</b> connections = positive weight · <b style="color:var(--red)">Red</b> = negative · Thickness = magnitude</div>
+</div>
+
+<!-- ════ TRAINING ════ -->
+<div class="step">
+  <h2>Training</h2>
+  <p class="desc">Gradient descent minimizes loss by nudging each weight in the direction that reduces error.</p>
+  <div class="ctrl">
+    <span class="lbl">Learning rate:</span>
+    <div class="chip-group" id="lrChips">
+      <button class="chip" data-val="0.001">0.001</button>
+      <button class="chip active" data-val="0.01">0.01</button>
+      <button class="chip" data-val="0.05">0.05</button>
+      <button class="chip" data-val="0.1">0.1</button>
+    </div>
+  </div>
+  <div class="ctrl">
+    <span class="lbl">Iterations:</span>
+    <div class="chip-group" id="iterChips">
+      <button class="chip" data-val="50">50</button>
+      <button class="chip active" data-val="150">150</button>
+      <button class="chip" data-val="500">500</button>
+      <button class="chip" data-val="1000">1000</button>
+    </div>
+  </div>
+  <div class="ctrl">
+    <button id="trainBtn" onclick="startTraining()">Train</button>
+    <button class="sec" onclick="stopTraining()">Stop</button>
+    <button class="sec" onclick="randomizeWeights()">Reset</button>
+    <span class="ei">Epoch: <b id="epochNum">0</b>/<span id="maxEpoch">150</span></span>
+    <span class="ei">Loss: <span id="lossVal">—</span></span>
+  </div>
+  <div class="loss-chart" id="lossChart"></div>
+  <div class="note">
+    <b>Each iteration:</b> forward pass predicts output → MSE loss measures error → backpropagation computes each weight's gradient → weights update by −(learning rate × gradient).
+  </div>
+</div>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════
+   AUTOGRAD ENGINE
+   ═══════════════════════════════════════ */
+function Val(data, children, op) {
+  this.data = data;
+  this.grad = 0;
+  this._bk = function(){};
+  this._prev = children || [];
+}
+
+Val.prototype.add = function(o) {
+  if (!(o instanceof Val)) o = new Val(o);
+  var out = new Val(this.data + o.data, [this, o]);
+  var a = this, b = o;
+  out._bk = function() { a.grad += out.grad; b.grad += out.grad; };
+  return out;
+};
+
+Val.prototype.mul = function(o) {
+  if (!(o instanceof Val)) o = new Val(o);
+  var out = new Val(this.data * o.data, [this, o]);
+  var a = this, b = o;
+  out._bk = function() { a.grad += b.data * out.grad; b.grad += a.data * out.grad; };
+  return out;
+};
+
+Val.prototype.tanh = function() {
+  var t = Math.tanh(this.data);
+  var out = new Val(t, [this]);
+  var a = this;
+  out._bk = function() { a.grad += (1 - t * t) * out.grad; };
+  return out;
+};
+
+Val.prototype.pow = function(n) {
+  var out = new Val(Math.pow(this.data, n), [this]);
+  var a = this;
+  out._bk = function() { a.grad += n * Math.pow(a.data, n - 1) * out.grad; };
+  return out;
+};
+
+Val.prototype.neg = function() { return this.mul(-1); };
+Val.prototype.sub = function(o) { if (!(o instanceof Val)) o = new Val(o); return this.add(o.neg()); };
+
+Val.prototype.backward = function() {
+  var topo = [], vis = new Set();
+  (function build(v) {
+    if (!vis.has(v)) { vis.add(v); for (var i = 0; i < v._prev.length; i++) build(v._prev[i]); topo.push(v); }
+  })(this);
+  this.grad = 1;
+  for (var i = topo.length - 1; i >= 0; i--) topo[i]._bk();
+};
+
+/* ═══════════════════════════════════════
+   NEURAL NETWORK
+   ═══════════════════════════════════════ */
+function Neuron(nin) {
+  this.w = [];
+  for (var i = 0; i < nin; i++) this.w.push(new Val(Math.random() * 2 - 1));
+  this.b = new Val(Math.random() * 2 - 1);
+}
+Neuron.prototype.call = function(x) {
+  var act = this.b;
+  for (var i = 0; i < this.w.length; i++) act = act.add(this.w[i].mul(x[i]));
+  return act.tanh();
+};
+Neuron.prototype.params = function() { return this.w.concat([this.b]); };
+
+function Layer(nin, nout) {
+  this.neurons = [];
+  for (var i = 0; i < nout; i++) this.neurons.push(new Neuron(nin));
+}
+Layer.prototype.call = function(x) {
+  var out = [];
+  for (var i = 0; i < this.neurons.length; i++) out.push(this.neurons[i].call(x));
+  return out;
+};
+Layer.prototype.params = function() {
+  var p = [];
+  for (var i = 0; i < this.neurons.length; i++) p = p.concat(this.neurons[i].params());
+  return p;
+};
+
+function MLP(nin, nouts) {
+  var sz = [nin].concat(nouts);
+  this.layers = [];
+  for (var i = 0; i < nouts.length; i++) this.layers.push(new Layer(sz[i], sz[i + 1]));
+}
+MLP.prototype.call = function(x) {
+  for (var i = 0; i < this.layers.length; i++) x = this.layers[i].call(x);
+  return x.length === 1 ? x[0] : x;
+};
+MLP.prototype.params = function() {
+  var p = [];
+  for (var i = 0; i < this.layers.length; i++) p = p.concat(this.layers[i].params());
+  return p;
+};
+
+/* Fast forward pass (no autograd, for rendering) */
+function predict(net, xArr) {
+  var cur = xArr;
+  for (var l = 0; l < net.layers.length; l++) {
+    var next = [];
+    for (var n = 0; n < net.layers[l].neurons.length; n++) {
+      var neuron = net.layers[l].neurons[n];
+      var s = neuron.b.data;
+      for (var w = 0; w < neuron.w.length; w++) s += neuron.w[w].data * cur[w];
+      next.push(Math.tanh(s));
+    }
+    cur = next;
+  }
+  return cur.length === 1 ? cur[0] : cur;
+}
+
+/* ═══════════════════════════════════════
+   TRAINING DATA
+   ═══════════════════════════════════════ */
+var NUM_PTS = 25;
+var trainXs = [], trainYs = [];
+for (var i = 0; i < NUM_PTS; i++) {
+  var x = -Math.PI + 2 * Math.PI * i / (NUM_PTS - 1);
+  trainXs.push(x);
+  trainYs.push(Math.sin(x));
+}
+
+/* ═══════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════ */
+var network, selectedParam = null, trainInt = null, epoch = 0, losses = [];
+
+function parseHidden() {
+  var active = document.querySelector('#archChips .chip.active');
+  var val = active ? active.dataset.arch : '4, 4';
+  var parts = val.split(',');
+  var dims = [];
+  for (var i = 0; i < parts.length; i++) {
+    var n = parseInt(parts[i].trim());
+    if (!isNaN(n) && n > 0 && n <= 32) dims.push(n);
+  }
+  return dims.length > 0 ? dims : [4, 4];
+}
+
+function buildNetwork() {
+  var hidden = parseHidden();
+  network = new MLP(1, hidden.concat([1]));
+}
+
+function rebuildNetwork() {
+  stopTraining();
+  selectedParam = null;
+  document.getElementById('weightEditor').classList.remove('active');
+  epoch = 0; losses = [];
+  document.getElementById('epochNum').textContent = '0';
+  document.getElementById('lossVal').textContent = '\u2014';
+  document.getElementById('lossChart').innerHTML = '';
+  buildNetwork();
+  drawAll();
+}
+
+function randomizeWeights() { rebuildNetwork(); }
+
+/* ═══════════════════════════════════════
+   WAVE CHART
+   ═══════════════════════════════════════ */
+var waveCanvas = document.getElementById('waveCanvas');
+var waveCtx = waveCanvas.getContext('2d');
+var DPR = window.devicePixelRatio || 1;
+waveCanvas.style.width = '700px';
+waveCanvas.style.height = '280px';
+waveCanvas.width = 700 * DPR;
+waveCanvas.height = 280 * DPR;
+waveCtx.scale(DPR, DPR);
+
+function drawWave() {
+  var W = 700, H = 280;
+  var pad = { l: 38, r: 12, t: 12, b: 22 };
+  var pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  var xMin = -Math.PI, xMax = Math.PI, yMin = -1.5, yMax = 1.5;
+
+  function mx(x) { return pad.l + (x - xMin) / (xMax - xMin) * pw; }
+  function my(y) { return pad.t + (1 - (y - yMin) / (yMax - yMin)) * ph; }
+
+  waveCtx.clearRect(0, 0, W, H);
+
+  /* grid */
+  waveCtx.strokeStyle = 'rgba(0,0,0,0.06)';
+  waveCtx.lineWidth = 1;
+  for (var y = -1; y <= 1; y += 0.5) {
+    waveCtx.beginPath(); waveCtx.moveTo(pad.l, my(y)); waveCtx.lineTo(W - pad.r, my(y)); waveCtx.stroke();
+  }
+
+  /* axes */
+  waveCtx.strokeStyle = 'rgba(0,0,0,0.15)';
+  waveCtx.beginPath(); waveCtx.moveTo(pad.l, my(0)); waveCtx.lineTo(W - pad.r, my(0)); waveCtx.stroke();
+  waveCtx.beginPath(); waveCtx.moveTo(mx(0), pad.t); waveCtx.lineTo(mx(0), H - pad.b); waveCtx.stroke();
+
+  /* labels */
+  waveCtx.fillStyle = 'rgba(0,0,0,0.3)';
+  waveCtx.font = '10px system-ui';
+  waveCtx.textAlign = 'right';
+  for (var y = -1; y <= 1; y += 0.5) waveCtx.fillText(y.toFixed(1), pad.l - 4, my(y) + 3);
+  waveCtx.textAlign = 'center';
+  waveCtx.fillText('-\u03c0', mx(-Math.PI), H - pad.b + 14);
+  waveCtx.fillText('0', mx(0), H - pad.b + 14);
+  waveCtx.fillText('\u03c0', mx(Math.PI), H - pad.b + 14);
+
+  /* target (dashed green) */
+  waveCtx.setLineDash([5, 3]);
+  waveCtx.strokeStyle = '#6a8f6e';
+  waveCtx.lineWidth = 2;
+  waveCtx.beginPath();
+  for (var i = 0; i <= 100; i++) {
+    var x = xMin + (xMax - xMin) * i / 100;
+    var cx = mx(x), cy = my(Math.sin(x));
+    i === 0 ? waveCtx.moveTo(cx, cy) : waveCtx.lineTo(cx, cy);
+  }
+  waveCtx.stroke();
+
+  /* predicted (solid blue) */
+  waveCtx.setLineDash([]);
+  waveCtx.strokeStyle = '#5b7a9e';
+  waveCtx.lineWidth = 2.5;
+  waveCtx.beginPath();
+  for (var i = 0; i <= 100; i++) {
+    var x = xMin + (xMax - xMin) * i / 100;
+    var y = predict(network, [x]);
+    y = Math.max(yMin, Math.min(yMax, y));
+    var cx = mx(x), cy = my(y);
+    i === 0 ? waveCtx.moveTo(cx, cy) : waveCtx.lineTo(cx, cy);
+  }
+  waveCtx.stroke();
+
+  /* training points */
+  waveCtx.fillStyle = '#6a8f6e';
+  for (var i = 0; i < NUM_PTS; i++) {
+    waveCtx.beginPath();
+    waveCtx.arc(mx(trainXs[i]), my(trainYs[i]), 3, 0, 2 * Math.PI);
+    waveCtx.fill();
+  }
+}
+
+/* ═══════════════════════════════════════
+   NETWORK DIAGRAM (SVG)
+   ═══════════════════════════════════════ */
+var NS = 'http://www.w3.org/2000/svg';
+
+function drawNet() {
+  var svg = document.getElementById('netSvg');
+  svg.innerHTML = '';
+  var hidden = parseHidden();
+  var dims = [1].concat(hidden).concat([1]);
+  var nL = dims.length;
+  var maxN = 0;
+  for (var i = 0; i < dims.length; i++) if (dims[i] > maxN) maxN = dims[i];
+
+  var svgW = 680, svgH = Math.max(160, maxN * 44 + 50);
+  svg.setAttribute('viewBox', '0 0 ' + svgW + ' ' + svgH);
+
+  var lx = [];
+  for (var l = 0; l < nL; l++) lx.push(50 + l * (svgW - 100) / Math.max(nL - 1, 1));
+
+  var pos = [];
+  for (var l = 0; l < nL; l++) {
+    pos[l] = [];
+    var sp = 42, tot = (dims[l] - 1) * sp, sy = (svgH - 20 - tot) / 2;
+    for (var i = 0; i < dims[l]; i++) pos[l].push({ x: lx[l], y: sy + i * sp });
+  }
+
+  /* connections */
+  for (var l = 0; l < network.layers.length; l++) {
+    for (var n = 0; n < network.layers[l].neurons.length; n++) {
+      var neuron = network.layers[l].neurons[n];
+      for (var w = 0; w < neuron.w.length; w++) {
+        var from = pos[l][w], to = pos[l + 1][n];
+        var val = neuron.w[w].data;
+        var absV = Math.abs(val);
+        var col = val >= 0 ? '#5b7a9e' : '#a85a53';
+        var thick = Math.max(0.5, Math.min(4, absV * 2));
+        var opac = Math.max(0.15, Math.min(0.8, absV * 0.4));
+        var isSel = selectedParam && selectedParam.p === neuron.w[w];
+
+        /* hitbox */
+        var hb = document.createElementNS(NS, 'line');
+        hb.setAttribute('x1', from.x); hb.setAttribute('y1', from.y);
+        hb.setAttribute('x2', to.x);   hb.setAttribute('y2', to.y);
+        hb.setAttribute('stroke', 'transparent'); hb.setAttribute('stroke-width', '14');
+        hb.style.cursor = 'pointer';
+        (function(l2, n2, w2) {
+          hb.addEventListener('click', function(e) { e.stopPropagation(); selWeight(l2, n2, w2); });
+        })(l, n, w);
+        svg.appendChild(hb);
+
+        /* visible line */
+        var ln = document.createElementNS(NS, 'line');
+        ln.setAttribute('x1', from.x); ln.setAttribute('y1', from.y);
+        ln.setAttribute('x2', to.x);   ln.setAttribute('y2', to.y);
+        ln.setAttribute('stroke', isSel ? '#d4a017' : col);
+        ln.setAttribute('stroke-width', isSel ? thick + 2 : thick);
+        ln.setAttribute('stroke-opacity', isSel ? 1 : opac);
+        ln.style.pointerEvents = 'none';
+        svg.appendChild(ln);
+      }
+    }
+  }
+
+  /* neurons */
+  for (var l = 0; l < nL; l++) {
+    for (var i = 0; i < dims[l]; i++) {
+      var p = pos[l][i];
+      var isSel = false;
+      if (l > 0 && selectedParam) isSel = selectedParam.p === network.layers[l - 1].neurons[i].b;
+
+      var c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', '16');
+      c.setAttribute('fill', isSel ? '#fef3c7' : '#faf8f4');
+      c.setAttribute('stroke', isSel ? '#d4a017' : '#ddd8cf');
+      c.setAttribute('stroke-width', isSel ? '2.5' : '1.5');
+      if (l > 0) {
+        c.style.cursor = 'pointer';
+        (function(l2, i2) {
+          c.addEventListener('click', function(e) { e.stopPropagation(); selBias(l2 - 1, i2); });
+        })(l, i);
+      }
+      svg.appendChild(c);
+
+      var t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', p.x); t.setAttribute('y', p.y + 4);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-size', '9'); t.setAttribute('font-family', 'system-ui');
+      t.setAttribute('fill', '#7a7a7a'); t.style.pointerEvents = 'none';
+      if (l === 0) t.textContent = 'x';
+      else if (l === nL - 1) t.textContent = 'out';
+      else t.textContent = 'h' + l + '.' + (i + 1);
+      svg.appendChild(t);
+    }
+  }
+
+  /* layer labels */
+  var lNames = ['Input'];
+  for (var l = 1; l < nL - 1; l++) lNames.push('Hidden ' + l);
+  lNames.push('Output');
+  for (var l = 0; l < nL; l++) {
+    var t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', lx[l]); t.setAttribute('y', svgH - 3);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('font-size', '9'); t.setAttribute('font-family', 'system-ui');
+    t.setAttribute('fill', '#7a7a7a');
+    t.textContent = lNames[l] + ' (' + dims[l] + ')';
+    svg.appendChild(t);
+  }
+}
+
+/* ═══════════════════════════════════════
+   WEIGHT EDITING
+   ═══════════════════════════════════════ */
+function selWeight(l, n, w) {
+  selectedParam = { p: network.layers[l].neurons[n].w[w], label: 'Layer ' + (l + 1) + ', Neuron ' + (n + 1) + ', Weight ' + (w + 1) };
+  showEditor();
+}
+
+function selBias(l, n) {
+  selectedParam = { p: network.layers[l].neurons[n].b, label: 'Layer ' + (l + 1) + ', Neuron ' + (n + 1) + ', Bias' };
+  showEditor();
+}
+
+function showEditor() {
+  document.getElementById('weightEditor').classList.add('active');
+  document.getElementById('weightLabel').textContent = selectedParam.label;
+  document.getElementById('weightSlider').value = selectedParam.p.data;
+  document.getElementById('weightDisplay').textContent = selectedParam.p.data.toFixed(3);
+  drawNet();
+}
+
+document.getElementById('weightSlider').addEventListener('input', function() {
+  if (!selectedParam) return;
+  selectedParam.p.data = parseFloat(this.value);
+  document.getElementById('weightDisplay').textContent = selectedParam.p.data.toFixed(3);
+  drawWave();
+  drawNet();
+});
+
+/* ═══════════════════════════════════════
+   TRAINING
+   ═══════════════════════════════════════ */
+function trainStep() {
+  var loss = new Val(0);
+  for (var i = 0; i < NUM_PTS; i++) {
+    var pred = network.call([new Val(trainXs[i])]);
+    var diff = pred.sub(new Val(trainYs[i]));
+    loss = loss.add(diff.pow(2));
+  }
+  loss = loss.mul(1 / NUM_PTS);
+
+  var params = network.params();
+  for (var i = 0; i < params.length; i++) params[i].grad = 0;
+  loss.backward();
+
+  var lrActive = document.querySelector('#lrChips .chip.active');
+  var lr = lrActive ? parseFloat(lrActive.dataset.val) : 0.01;
+  for (var i = 0; i < params.length; i++) params[i].data -= lr * params[i].grad;
+  return loss.data;
+}
+
+function startTraining() {
+  if (trainInt) return;
+  buildNetwork();
+  selectedParam = null;
+  document.getElementById('weightEditor').classList.remove('active');
+  document.getElementById('lossChart').innerHTML = '';
+  var iterActive = document.querySelector('#iterChips .chip.active');
+  var maxE = iterActive ? parseInt(iterActive.dataset.val) : 150;
+  document.getElementById('maxEpoch').textContent = maxE;
+  document.getElementById('trainBtn').disabled = true;
+  epoch = 0; losses = [];
+  drawAll();
+
+  trainInt = setInterval(function() {
+    if (epoch >= maxE) { stopTraining(); return; }
+    var l = trainStep();
+    epoch++; losses.push(l);
+    document.getElementById('epochNum').textContent = epoch;
+    document.getElementById('lossVal').textContent = l.toFixed(4);
+    drawWave();
+    drawLoss();
+    if (epoch % 10 === 0 || epoch >= maxE) drawNet();
+  }, 40);
+}
+
+function stopTraining() {
+  if (trainInt) { clearInterval(trainInt); trainInt = null; }
+  document.getElementById('trainBtn').disabled = false;
+  drawNet();
+}
+
+function drawLoss() {
+  var el = document.getElementById('lossChart');
+  var mx = 0;
+  for (var i = 0; i < losses.length; i++) if (losses[i] > mx) mx = losses[i];
+  var h = '';
+  for (var i = 0; i < losses.length; i++) {
+    h += '<div class="loss-bar" style="height:' + (losses[i] / mx) * 85 + 'px;opacity:' + (0.4 + 0.6 * i / losses.length) + '" title="Epoch ' + (i + 1) + ': ' + losses[i].toFixed(4) + '"></div>';
+  }
+  el.innerHTML = h;
+}
+
+/* ═══════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════ */
+function drawAll() { drawWave(); drawNet(); }
+
+/* Chip group handlers */
+document.getElementById('archChips').addEventListener('click', function(e) {
+  var chip = e.target.closest('.chip');
+  if (!chip) return;
+  this.querySelector('.chip.active').classList.remove('active');
+  chip.classList.add('active');
+  rebuildNetwork();
+});
+document.getElementById('lrChips').addEventListener('click', function(e) {
+  var chip = e.target.closest('.chip');
+  if (!chip) return;
+  this.querySelector('.chip.active').classList.remove('active');
+  chip.classList.add('active');
+});
+document.getElementById('iterChips').addEventListener('click', function(e) {
+  var chip = e.target.closest('.chip');
+  if (!chip) return;
+  this.querySelector('.chip.active').classList.remove('active');
+  chip.classList.add('active');
+  document.getElementById('maxEpoch').textContent = chip.dataset.val;
+});
+
+buildNetwork();
+drawAll();
+</script>
+
+<div class="ai-badge" id="aiBadge">
+  <div class="ai-badge-header">[ AI ]</div>
+  <div class="ai-badge-body">
+    The visual content and walkthrough on this page were AI generated.
+    The model logic is ported from
+    <a href="https://github.com/Ahmed-Elawad/observe" target="_blank" rel="noopener">Ahmed-Elawad/observe</a>.
+  </div>
+</div>
+
+<script>
+(function() {
+  const badge = document.getElementById('aiBadge');
+  const pad   = 16;                       // margin from edges
+  const speed = 1.5;                      // px per frame
+
+  // start bottom-right
+  let x = window.innerWidth  - badge.offsetWidth  - pad;
+  let y = window.innerHeight - badge.offsetHeight - pad;
+  let vx = speed, vy = speed * 0.73;     // slight angle
+
+  badge.style.left = x + 'px';
+  badge.style.top  = y + 'px';
+
+  badge.addEventListener('click', function(e) {
+    e.stopPropagation();
+    badge.classList.toggle('open');
+  });
+
+  function tick() {
+    if (!badge.classList.contains('open')) {
+      const w = badge.offsetWidth, h = badge.offsetHeight;
+      const maxX = window.innerWidth  - w - pad;
+      const maxY = window.innerHeight - h - pad;
+
+      x += vx; y += vy;
+
+      if (x <= pad)  { x = pad;  vx = Math.abs(vx); }
+      if (x >= maxX) { x = maxX; vx = -Math.abs(vx); }
+      if (y <= pad)  { y = pad;  vy = Math.abs(vy); }
+      if (y >= maxY) { y = maxY; vy = -Math.abs(vy); }
+
+      badge.style.left = x + 'px';
+      badge.style.top  = y + 'px';
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+
+</body>
+</html>
