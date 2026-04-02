@@ -132,6 +132,14 @@ main {
   transform: translateX(3px);
 }
 
+@media (max-width: 600px) {
+  nav { padding: 0.7rem 1rem; gap: 1rem; }
+  nav .brand { font-size: 1.2rem; }
+  nav a { font-size: 0.85rem; }
+  nav .nav-link img { width: 16px; height: 16px; }
+  main { padding: 2rem 1rem; }
+}
+
 /* Footer */
 footer {
   text-align: center;

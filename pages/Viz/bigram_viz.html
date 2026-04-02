@@ -193,6 +193,19 @@ button.sec:hover { background: rgba(0,0,0,.1); }
   transition: color 0.2s;
 }
 .ai-badge-body a:hover { color: var(--accent-hover); }
+
+@media (max-width: 600px) {
+  .page { padding: 1.5rem 1rem; }
+  .step { padding: 1rem; }
+  h1 { font-size: 1.3rem; }
+  .flow { gap: .3rem; }
+  .fbox { padding: .35rem .6rem; }
+  .fval { font-size: .78rem; }
+  .note { padding: .4rem .7rem; font-size: .75rem; }
+  .bar-track { max-width: 180px; }
+  .char-box { min-width: 22px; height: 22px; font-size: .72rem; }
+  pre { font-size: .72rem; padding: .6rem .8rem; }
+}
 </style>
 </head>
 <body>
@@ -201,10 +214,6 @@ button.sec:hover { background: rgba(0,0,0,.1); }
     <a class="nav-link" href="https://www.linkedin.com/in/ahmedelawad/">
       <img src="/resources/linkedin.svg" alt="LinkedIn" />
       LinkedIn
-    </a>
-    <a class="nav-link" href="https://github.com/Ahmed-Elawad">
-      <img src="/resources/github.svg" alt="GitHub" />
-      Github
     </a>
   </nav>
 <div class="page">
@@ -733,8 +742,7 @@ updateAll();
   <div class="ai-badge-header">[ AI ]</div>
   <div class="ai-badge-body">
     The visual content and walkthrough on this page were AI generated.
-    The model logic is ported from
-    <a href="https://github.com/Ahmed-Elawad/observe" target="_blank" rel="noopener">Ahmed-Elawad/observe</a>.
+    The model logic is ported from a basic small model.
   </div>
 </div>
 

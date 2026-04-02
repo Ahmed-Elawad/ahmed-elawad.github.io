@@ -117,6 +117,15 @@ select, input[type="text"], input[type="number"] {
   transition: color 0.2s;
 }
 .ai-badge-body a:hover { color: var(--accent-hover); }
+
+@media (max-width: 600px) {
+  .page { padding: 1.5rem 1rem; }
+  .step { padding: 1rem; }
+  h1 { font-size: 1.3rem; }
+  .legend { flex-wrap: wrap; gap: .5rem; }
+  .weight-editor { padding: .6rem .7rem; }
+  .note { padding: .4rem .7rem; font-size: .75rem; }
+}
 </style>
 </head>
 <body>
@@ -125,10 +134,6 @@ select, input[type="text"], input[type="number"] {
     <a class="nav-link" href="https://www.linkedin.com/in/ahmedelawad/">
       <img src="/resources/linkedin.svg" alt="LinkedIn" />
       LinkedIn
-    </a>
-    <a class="nav-link" href="https://github.com/Ahmed-Elawad">
-      <img src="/resources/github.svg" alt="GitHub" />
-      Github
     </a>
   </nav>
 <div class="page">
@@ -379,14 +384,24 @@ function randomizeWeights() { rebuildNetwork(); }
 var waveCanvas = document.getElementById('waveCanvas');
 var waveCtx = waveCanvas.getContext('2d');
 var DPR = window.devicePixelRatio || 1;
-waveCanvas.style.width = '700px';
-waveCanvas.style.height = '280px';
-waveCanvas.width = 700 * DPR;
-waveCanvas.height = 280 * DPR;
-waveCtx.scale(DPR, DPR);
+
+function sizeCanvas() {
+  var parent = waveCanvas.parentElement;
+  var cs = getComputedStyle(parent);
+  var cw = parent.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  var W = Math.min(700, Math.floor(cw));
+  var H = Math.round(W * 280 / 700);
+  waveCanvas.style.width = W + 'px';
+  waveCanvas.style.height = H + 'px';
+  waveCanvas.width = W * DPR;
+  waveCanvas.height = H * DPR;
+  waveCtx.setTransform(1, 0, 0, 1, 0, 0);
+  waveCtx.scale(DPR, DPR);
+}
+sizeCanvas();
 
 function drawWave() {
-  var W = 700, H = 280;
+  var W = waveCanvas.width / DPR, H = waveCanvas.height / DPR;
   var pad = { l: 38, r: 12, t: 12, b: 22 };
   var pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
   var xMin = -Math.PI, xMax = Math.PI, yMin = -1.5, yMax = 1.5;
@@ -684,6 +699,8 @@ document.getElementById('iterChips').addEventListener('click', function(e) {
   document.getElementById('maxEpoch').textContent = chip.dataset.val;
 });
 
+window.addEventListener('resize', function() { sizeCanvas(); drawAll(); });
+
 buildNetwork();
 drawAll();
 </script>
@@ -692,8 +709,7 @@ drawAll();
   <div class="ai-badge-header">[ AI ]</div>
   <div class="ai-badge-body">
     The visual content and walkthrough on this page were AI generated.
-    The model logic is ported from
-    <a href="https://github.com/Ahmed-Elawad/observe" target="_blank" rel="noopener">Ahmed-Elawad/observe</a>.
+    The model logic is ported from a basic local model.
   </div>
 </div>
 
